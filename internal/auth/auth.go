@@ -406,35 +406,101 @@ func browserFromDesktopName(name string) Browser {
 	return ""
 }
 
-// VerifyBrowserCookies checks that yt-dlp can load cookies from the given
-// browser. It uses a tiny public video so it does not require account data,
-// but fails fast when the cookie database is missing, locked, or unusable.
+// ytdlpPath is the yt-dlp binary to run; the portable build sets the bundled
+// copy here. Empty means PATH.
+var ytdlpPath string
+
+// SetYTDLPPath points cookie verification at a specific yt-dlp binary.
+func SetYTDLPPath(p string) { ytdlpPath = p }
+
+// jsRuntime is an optional JavaScript runtime (QuickJS) for yt-dlp.
+var jsRuntime string
+
+// SetJSRuntime points yt-dlp at a bundled JavaScript runtime.
+func SetJSRuntime(p string) { jsRuntime = p }
+
+// ytdlp returns the yt-dlp binary to run.
+func ytdlp() string {
+	if ytdlpPath != "" {
+		return ytdlpPath
+	}
+	return "yt-dlp"
+}
+
+// VerifyBrowserCookies checks that yt-dlp can load the browser's cookies by
+// dumping them to a transient jar and looking for a YouTube session cookie.
+// This avoids probing a video, which can fail on bot checks even when the
+// cookies are perfectly fine.
 func VerifyBrowserCookies(b Browser) error {
 	args := CookiesFromBrowserArgs(b)
 	if args == nil {
 		return fmt.Errorf("%s has no profile to read cookies from", b.Label())
 	}
+	f, err := os.CreateTemp("", "yt-gecko-verify-*.txt")
+	if err != nil {
+		return err
+	}
+	jar := f.Name()
+	f.Close()
+	_ = os.Remove(jar) // yt-dlp refuses to write over an existing empty file
+	defer os.Remove(jar)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	args = append(args,
 		"--ignore-config",
 		"--no-warnings",
+	)
+	if jsRuntime != "" {
+		args = append(args, "--js-runtimes", "quickjs:"+jsRuntime)
+	}
+	args = append(args,
+		"--cookies", jar,
 		"--simulate",
 		"--skip-download",
 		"--",
 		"https://www.youtube.com/watch?v=jNQXAC9IVRw")
 
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd := exec.CommandContext(ctx, ytdlp(), args...)
 	cmd.Stderr = &stderr
+	runErr := cmd.Run()
 
-	if err := cmd.Run(); err != nil {
+	data, readErr := os.ReadFile(jar)
+	if readErr != nil || len(data) == 0 {
 		msg := strings.TrimSpace(stderr.String())
 		if msg != "" {
-			return fmt.Errorf("yt-dlp could not read %s cookies: %w: %s", b.Label(), err, msg)
+			return fmt.Errorf("yt-dlp could not read %s cookies: %w: %s", b.Label(), runErr, msg)
 		}
-		return fmt.Errorf("yt-dlp could not read %s cookies: %w", b.Label(), err)
+		return fmt.Errorf("yt-dlp could not read %s cookies: %w", b.Label(), runErr)
+	}
+	if !jarHasSessionCookie(string(data)) {
+		return fmt.Errorf("%s is not signed in to YouTube (no session cookie found)", b.Label())
 	}
 	return nil
+}
+
+// jarHasSessionCookie reports whether a Netscape cookie jar carries a YouTube
+// session cookie, which is what authenticated requests need.
+func jarHasSessionCookie(jar string) bool {
+	for _, line := range strings.Split(jar, "\n") {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) < 7 {
+			continue
+		}
+		if !strings.HasSuffix(fields[0], "youtube.com") {
+			continue
+		}
+		switch fields[5] {
+		case "SAPISID", "__Secure-3PAPISID", "SID", "__Secure-1PSID":
+			if fields[6] != "" {
+				return true
+			}
+		}
+	}
+	return false
 }

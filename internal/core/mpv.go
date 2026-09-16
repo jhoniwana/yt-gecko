@@ -65,6 +65,7 @@ func (g *GeckoCore) ResolveStream(url string, audioOnly bool) ([]string, error) 
 	var lastErr error
 	for _, format := range formats {
 		args := []string{"--skip-download", "--get-url"}
+		args = append(args, g.jsRuntimeArgs()...)
 		if format != "" {
 			args = append(args, "-f", format)
 		}
@@ -72,7 +73,7 @@ func (g *GeckoCore) ResolveStream(url string, audioOnly bool) ([]string, error) 
 		args = append(args, url)
 
 		var stderr bytes.Buffer
-		cmd := exec.Command("yt-dlp", args...)
+		cmd := exec.Command(g.ytdlp(), args...)
 		cmd.Stderr = &stderr
 
 		out, err := cmd.Output()
@@ -130,7 +131,10 @@ func (g *GeckoCore) start(target, audioURL string, audioOnly bool) error {
 	}
 	args = append(args, target)
 
-	cmd := exec.Command("mpv", args...)
+	cmd := exec.Command(g.mpvBin(), args...)
+	if g.mpvEnv != nil {
+		cmd.Env = g.mpvEnv
+	}
 	g.mpvErr.Reset()
 	cmd.Stderr = &g.mpvErr
 

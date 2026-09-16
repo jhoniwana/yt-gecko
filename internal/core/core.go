@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jhoniwana/yt-gecko/internal/assets"
 	"github.com/jhoniwana/yt-gecko/internal/auth"
 )
 
@@ -21,6 +22,47 @@ type GeckoCore struct {
 	mpvErr     bytes.Buffer
 	browser    auth.Browser
 	quality    string
+
+	// Bundled tool paths (portable build). Empty means "use PATH".
+	ytdlpPath string
+	mpvPath   string
+	mpvEnv    []string
+	qjsPath   string
+}
+
+// SetTools wires the external tool paths resolved by the assets package.
+func (g *GeckoCore) SetTools(t assets.Tools) {
+	g.ytdlpPath = t.YTDLP
+	g.mpvPath = t.MPV
+	g.qjsPath = t.QJS
+	if len(t.MPVLibDirs) > 0 {
+		g.mpvEnv = append(os.Environ(), "LD_LIBRARY_PATH="+strings.Join(t.MPVLibDirs, ":"))
+	}
+}
+
+// ytdlp returns the yt-dlp binary to run (bundled or from PATH).
+func (g *GeckoCore) ytdlp() string {
+	if g.ytdlpPath != "" {
+		return g.ytdlpPath
+	}
+	return "yt-dlp"
+}
+
+// jsRuntimeArgs points yt-dlp at the bundled QuickJS when present, so the
+// JavaScript challenges (nsig/sig) resolve on machines with no deno/node.
+func (g *GeckoCore) jsRuntimeArgs() []string {
+	if g.qjsPath == "" {
+		return nil
+	}
+	return []string{"--js-runtimes", "quickjs:" + g.qjsPath}
+}
+
+// mpvBin returns the mpv binary to run (bundled or from PATH).
+func (g *GeckoCore) mpvBin() string {
+	if g.mpvPath != "" {
+		return g.mpvPath
+	}
+	return "mpv"
 }
 
 // QualityOptions are the selectable playback qualities. "auto" lets yt-dlp

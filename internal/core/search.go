@@ -54,11 +54,12 @@ func (g *GeckoCore) listVideos(source string) ([]SearchResult, error) {
 		"--flat-playlist",
 		"--print", "%(id)s||%(title)s||%(duration)s||%(uploader)s",
 	}
+	args = append(args, g.jsRuntimeArgs()...)
 	args = append(args, g.authArgs()...)
 	args = append(args, source)
 
 	var stderr bytes.Buffer
-	cmd := exec.Command("yt-dlp", args...)
+	cmd := exec.Command(g.ytdlp(), args...)
 	cmd.Stderr = &stderr
 
 	out, err := cmd.Output()

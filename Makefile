@@ -47,3 +47,24 @@ build-macos:
 	GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_TARGET)/$(BINARY_NAME)-darwin-arm64 .
 
 build-all: build-linux build-macos
+# --- Portable single-file build -------------------------------------------
+# `make assets` downloads the payloads (they are gitignored: ~150 MB), and
+# `make portable` builds one binary with everything embedded. On first run the
+# binary unpacks yt-dlp and mpv into the user cache, so it needs nothing
+# installed on the target machine.
+YTDLP_URL   := https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+MPV_APPIMAGE:= https://github.com/ivan-hc/MPV-appimage/releases/download/continuous/mpv-Media-Player_0.41.0-6-archimage5.0-x86_64.AppImage
+QJS_URL     := https://github.com/quickjs-ng/quickjs/releases/download/v0.16.2/qjs-linux-x86_64
+
+.PHONY: assets portable
+
+assets:
+	mkdir -p internal/assets/payload
+	[ -x internal/assets/payload/yt-dlp ] || curl -L --fail -o internal/assets/payload/yt-dlp $(YTDLP_URL)
+	[ -x internal/assets/payload/mpv.AppImage ] || curl -L --fail -o internal/assets/payload/mpv.AppImage $(MPV_APPIMAGE)
+	[ -x internal/assets/payload/qjs ] || curl -L --fail -o internal/assets/payload/qjs $(QJS_URL)
+	chmod +x internal/assets/payload/yt-dlp internal/assets/payload/mpv.AppImage internal/assets/payload/qjs
+
+portable: assets
+	go build -tags portable -ldflags "$(LDFLAGS)" -o $(BINARY_TARGET)/$(BINARY_NAME)-portable .
+	@ls -lh $(BINARY_TARGET)/$(BINARY_NAME)-portable

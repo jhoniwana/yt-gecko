@@ -5,8 +5,7 @@ bin/
 *.out
 
 # Embedded tool payloads (downloaded by `make assets`, too big for git)
-assets/yt-dlp
-assets/mpv.AppImage
+internal/assets/payload/
 
 # Local scratch
 /tmp/

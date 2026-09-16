@@ -20,11 +20,11 @@ import (
 )
 
 const (
-	innerTubeBrowsePath   = "/youtubei/v1/browse"
-	innerTubeNextPath     = "/youtubei/v1/next"
-	innerTubeHomeURL      = "https://www.youtube.com/"
-	innerTubeFallbackKey  = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
-	innerTubeTimeout      = 20 * time.Second
+	innerTubeBrowsePath  = "/youtubei/v1/browse"
+	innerTubeNextPath    = "/youtubei/v1/next"
+	innerTubeHomeURL     = "https://www.youtube.com/"
+	innerTubeFallbackKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+	innerTubeTimeout     = 20 * time.Second
 )
 
 var (
@@ -190,7 +190,7 @@ func (g *GeckoCore) newInnerTubeSession() (*innerTubeSession, error) {
 		return nil, fmt.Errorf("not signed in")
 	}
 
-	jar, err := dumpCookieJar(b)
+	jar, err := g.dumpCookieJar(b)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +337,7 @@ func findToken(node any) string {
 // Netscape jar in a temporary file. The file is transient (the caller removes
 // it immediately after parsing) and never stored or printed. The jar path must
 // not exist beforehand: yt-dlp refuses an empty pre-created file.
-func dumpCookieJar(b auth.Browser) (string, error) {
+func (g *GeckoCore) dumpCookieJar(b auth.Browser) (string, error) {
 	f, err := os.CreateTemp("", "yt-gecko-cookies-*.txt")
 	if err != nil {
 		return "", err
@@ -352,16 +352,26 @@ func dumpCookieJar(b auth.Browser) (string, error) {
 
 	args := append(auth.CookiesFromBrowserArgs(b),
 		"--cookies", jar,
+	)
+	args = append(args, g.jsRuntimeArgs()...)
+	args = append(args,
+		"--simulate", "--skip-download", "--",
 		"--simulate", "--skip-download", "--",
 		"https://www.youtube.com/watch?v=jNQXAC9IVRw")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	cmd := exec.CommandContext(ctx, g.ytdlp(), args...)
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	err = cmd.Run()
+	// The probe video can fail (bot checks, canaries) even when the cookie
+	// extraction worked, so the jar contents decide, not the exit status.
+	if fi, statErr := os.Stat(jar); statErr != nil || fi.Size() == 0 {
 		_ = os.Remove(jar)
+		if err == nil {
+			err = fmt.Errorf("yt-dlp wrote no cookie jar")
+		}
 		return "", fmt.Errorf("read %s cookies: %w: %s", b.Label(), err, strings.TrimSpace(stderr.String()))
 	}
 	return jar, nil
