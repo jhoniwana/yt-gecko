@@ -1,0 +1,14 @@
+# Build artifacts
+build/
+bin/
+*.test
+*.out
+
+# Embedded tool payloads (downloaded by `make assets`, too big for git)
+assets/yt-dlp
+assets/mpv.AppImage
+
+# Local scratch
+/tmp/
+*.png
+*.log

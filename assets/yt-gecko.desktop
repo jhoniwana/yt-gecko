@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=yt-gecko
+GenericName=YouTube Terminal Client
+Comment=Fast lightweight terminal client for YouTube
+Exec=kitty -e /home/jhon/.local/bin/yt-gecko
+Icon=yt-gecko
+Terminal=false
+Categories=AudioVideo;Player;
+StartupNotify=false
+Keywords=YouTube;video;music;mpv;
