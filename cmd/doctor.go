@@ -76,6 +76,17 @@ func report(g *core.GeckoCore) {
 	}
 
 	fmt.Println()
+	fmt.Println("real audio output test (0.5 s tone on the default device):")
+	if out, err := runMPVErr(g, "--no-video", "--no-terminal",
+		"--demuxer-lavf-o=analyzeduration=1000000",
+		"av://lavfi:sine=frequency=440:duration=0.5"); err == nil {
+		fmt.Println("  ok: the default audio output works")
+	} else {
+		fmt.Println("  FAILED: " + cleanNoise(out))
+		fmt.Println("  (no sound server? mpv can still decode, but nothing is audible)")
+	}
+
+	fmt.Println()
 	fmt.Println("stream resolve self-test:")
 	if url, err := g.ResolveStream("https://www.youtube.com/watch?v=jNQXAC9IVRw", true); err != nil {
 		fmt.Println("  FAILED: " + firstLine(err.Error()))
