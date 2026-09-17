@@ -48,19 +48,6 @@ var rootCmd = &cobra.Command{
 // thumbnails when the terminal implements the protocol. Mouse reporting is on
 // so the scroll wheel navigates and ctrl+wheel zooms the cards.
 func runTUI(g *core.GeckoCore) error {
-	// Portable builds carry yt-dlp and mpv inside the binary and unpack them
-	// into the user cache on first run; default builds use PATH.
-	if tools, err := assets.Ensure(); err == nil {
-		g.SetTools(tools)
-		auth.SetYTDLPPath(tools.YTDLP)
-		auth.SetJSRuntime(tools.QJS)
-		if tools.Extracted {
-			fmt.Fprintln(os.Stderr, "yt-gecko: unpacked bundled tools (first run only)")
-		}
-	} else {
-		fmt.Fprintln(os.Stderr, "yt-gecko: bundled tools unavailable, using PATH:", err)
-	}
-
 	if tui.ProbeGraphics(os.Stdin, os.Stdout) {
 		gw := tui.NewGFXWriter(os.Stdout)
 		p := tea.NewProgram(tui.New(g, gw), tea.WithAltScreen(), tea.WithOutput(gw), tea.WithMouseAllMotion())
@@ -86,6 +73,18 @@ func gecko() *core.GeckoCore {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
+	}
+	// Portable builds carry yt-dlp, mpv and QuickJS inside the binary and
+	// unpack them into the user cache on first run; default builds use PATH.
+	if tools, err := assets.Ensure(); err == nil {
+		g.SetTools(tools)
+		auth.SetYTDLPPath(tools.YTDLP)
+		auth.SetJSRuntime(tools.QJS)
+		if tools.Extracted {
+			fmt.Fprintln(os.Stderr, "yt-gecko: unpacked bundled tools (first run only)")
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, "yt-gecko: bundled tools unavailable, using PATH:", err)
 	}
 	return g
 }

@@ -131,7 +131,7 @@ func (g *GeckoCore) start(target, audioURL string, audioOnly bool) error {
 	}
 	args = append(args, target)
 
-	cmd := exec.Command(g.mpvBin(), args...)
+	cmd := g.mpvCommand(args)
 	if g.mpvEnv != nil {
 		cmd.Env = g.mpvEnv
 	}

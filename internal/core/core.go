@@ -24,10 +24,12 @@ type GeckoCore struct {
 	quality    string
 
 	// Bundled tool paths (portable build). Empty means "use PATH".
-	ytdlpPath string
-	mpvPath   string
-	mpvEnv    []string
-	qjsPath   string
+	ytdlpPath  string
+	mpvPath    string
+	mpvEnv     []string
+	mpvLibDirs []string
+	mpvLoader  string
+	qjsPath    string
 }
 
 // SetTools wires the external tool paths resolved by the assets package.
@@ -35,7 +37,9 @@ func (g *GeckoCore) SetTools(t assets.Tools) {
 	g.ytdlpPath = t.YTDLP
 	g.mpvPath = t.MPV
 	g.qjsPath = t.QJS
+	g.mpvLoader = t.MPVLoader
 	if len(t.MPVLibDirs) > 0 {
+		g.mpvLibDirs = t.MPVLibDirs
 		g.mpvEnv = append(os.Environ(), "LD_LIBRARY_PATH="+strings.Join(t.MPVLibDirs, ":"))
 	}
 }
@@ -55,6 +59,17 @@ func (g *GeckoCore) jsRuntimeArgs() []string {
 		return nil
 	}
 	return []string{"--js-runtimes", "quickjs:" + g.qjsPath}
+}
+
+// mpvCommand builds the mpv invocation. When a bundled dynamic loader is
+// configured, mpv runs through it with the bundled library path so the
+// payload's own glibc is used on any distribution.
+func (g *GeckoCore) mpvCommand(args []string) *exec.Cmd {
+	if g.mpvLoader != "" && len(g.mpvLibDirs) > 0 {
+		loaderArgs := append([]string{"--library-path", strings.Join(g.mpvLibDirs, ":"), g.mpvPath}, args...)
+		return exec.Command(g.mpvLoader, loaderArgs...)
+	}
+	return exec.Command(g.mpvBin(), args...)
 }
 
 // mpvBin returns the mpv binary to run (bundled or from PATH).

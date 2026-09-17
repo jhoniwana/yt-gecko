@@ -13,6 +13,9 @@ type Tools struct {
 	// QJS is a bundled QuickJS runtime for yt-dlp's JavaScript challenges
 	// (nsig/sig solving); empty means "let yt-dlp find deno/node".
 	QJS string
+	// MPVLoader is the dynamic loader that must run mpv with the bundled
+	// libraries (the rootfs ships its own glibc, independent of the host).
+	MPVLoader string
 	// Extracted is true when this call unpacked the embedded payloads.
 	Extracted bool
 }

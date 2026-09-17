@@ -61,9 +61,13 @@ QJS_URL     := https://github.com/quickjs-ng/quickjs/releases/download/v0.16.2/q
 assets:
 	mkdir -p internal/assets/payload
 	[ -x internal/assets/payload/yt-dlp ] || curl -L --fail -o internal/assets/payload/yt-dlp $(YTDLP_URL)
-	[ -x internal/assets/payload/mpv.AppImage ] || curl -L --fail -o internal/assets/payload/mpv.AppImage $(MPV_APPIMAGE)
 	[ -x internal/assets/payload/qjs ] || curl -L --fail -o internal/assets/payload/qjs $(QJS_URL)
-	chmod +x internal/assets/payload/yt-dlp internal/assets/payload/mpv.AppImage internal/assets/payload/qjs
+	if [ ! -f internal/assets/payload/mpv.tar.gz ]; then \
+		curl -L --fail -o internal/assets/payload/mpv.AppImage $(MPV_APPIMAGE); \
+		./scripts/make-mpv-payload.sh internal/assets/payload internal/assets/payload/mpv.AppImage; \
+		rm -f internal/assets/payload/mpv.AppImage; \
+	fi
+	chmod +x internal/assets/payload/yt-dlp internal/assets/payload/qjs
 
 portable: assets
 	go build -tags portable -ldflags "$(LDFLAGS)" -o $(BINARY_TARGET)/$(BINARY_NAME)-portable .

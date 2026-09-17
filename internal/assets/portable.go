@@ -3,15 +3,18 @@
 package assets
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
-//go:embed payload/yt-dlp payload/mpv.AppImage payload/qjs
+//go:embed payload/yt-dlp payload/mpv.tar.gz payload/qjs
 var payload embed.FS
 
 // payloadVersion names the cache directory; bump it whenever the embedded
@@ -42,20 +45,18 @@ func Ensure() (Tools, error) {
 		return Tools{}, err
 	}
 
-	appImage := filepath.Join(dir, "mpv.AppImage")
-	if err := writePayload(appImage, "payload/mpv.AppImage"); err != nil {
+	tarball := filepath.Join(dir, "mpv.tar.gz")
+	if err := writePayload(tarball, "payload/mpv.tar.gz"); err != nil {
 		return Tools{}, err
 	}
 	extractDir := filepath.Join(dir, "mpv")
 	if err := os.MkdirAll(extractDir, 0o755); err != nil {
 		return Tools{}, err
 	}
-	cmd := exec.Command(appImage, "--appimage-extract")
-	cmd.Dir = extractDir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return Tools{}, fmt.Errorf("extract bundled mpv: %w: %s", err, out)
+	if err := extractTarGz(tarball, extractDir); err != nil {
+		return Tools{}, fmt.Errorf("extract bundled mpv: %w", err)
 	}
-	_ = os.Remove(appImage)
+	_ = os.Remove(tarball)
 
 	if err := os.WriteFile(stamp, []byte("ok"), 0o644); err != nil {
 		return Tools{}, err
@@ -65,6 +66,59 @@ func Ensure() (Tools, error) {
 	return t, nil
 }
 
+// extractTarGz unpacks a gzipped tar archive, preserving modes and symlinks.
+func extractTarGz(archive, dest string) error {
+	f, err := os.Open(archive)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dest, filepath.Clean(hdr.Name))
+		if !strings.HasPrefix(target, filepath.Clean(dest)+string(os.PathSeparator)) {
+			return fmt.Errorf("unsafe path in archive: %s", hdr.Name)
+		}
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, os.FileMode(hdr.Mode)); err != nil {
+				return err
+			}
+		case tar.TypeSymlink:
+			_ = os.Remove(target)
+			if err := os.Symlink(hdr.Linkname, target); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(hdr.Mode))
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				return err
+			}
+			out.Close()
+		}
+	}
+}
+
 // writePayload copies an embedded file out of the binary with exec bits.
 func writePayload(dst, name string) error {
 	data, err := fs.ReadFile(payload, name)
@@ -72,6 +126,19 @@ func writePayload(dst, name string) error {
 		return err
 	}
 	return os.WriteFile(dst, data, 0o755)
+}
+
+// findLoader returns the dynamic loader shipped in an AppImage rootfs, if
+// any. Running mpv through it keeps the bundled glibc and libraries in use,
+// independent of the host distribution.
+func findLoader(base string) string {
+	for _, name := range []string{"ld-linux-x86-64.so.2", "ld-linux.so.2", "ld-musl-x86_64.so.1"} {
+		p := filepath.Join(base, "usr", "lib", name)
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p
+		}
+	}
+	return ""
 }
 
 // toolsFor resolves the paths inside an extracted cache directory. AppImages
@@ -96,6 +163,7 @@ func toolsFor(dir string) Tools {
 			MPV:        bin,
 			MPVLibDirs: libs,
 			QJS:        filepath.Join(dir, "qjs"),
+			MPVLoader:  findLoader(base),
 		}
 	}
 	return Tools{YTDLP: filepath.Join(dir, "yt-dlp"), QJS: filepath.Join(dir, "qjs")}
