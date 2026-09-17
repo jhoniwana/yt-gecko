@@ -11,3 +11,4 @@ internal/assets/payload/
 /tmp/
 *.png
 *.log
+.payload-check/

@@ -29,6 +29,7 @@ func (g *GeckoCore) Play(url string, audioOnly bool) (*Client, error) {
 		audioOnly = true
 	}
 
+	var lastErr string
 	for attempt := 1; attempt <= maxPlayRetries; attempt++ {
 		target := url
 		var audioURL string
@@ -49,9 +50,30 @@ func (g *GeckoCore) Play(url string, audioOnly bool) (*Client, error) {
 		if !g.exitedWithin(loadGracePeriod) {
 			return &Client{socketPath: g.socketPath}, nil
 		}
+		lastErr = mpvStderr(g)
 		_ = g.Stop()
 	}
+	if lastErr != "" {
+		return nil, fmt.Errorf("mpv could not play the stream: %s", lastErr)
+	}
 	return nil, fmt.Errorf("mpv failed to load the stream after %d attempts", maxPlayRetries)
+}
+
+// mpvStderr returns the last meaningful line mpv printed before dying, so
+// playback failures explain themselves in the UI.
+func mpvStderr(g *GeckoCore) string {
+	lines := strings.Split(strings.TrimSpace(g.mpvErr.String()), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		if len(line) > 200 {
+			line = line[:200]
+		}
+		return line
+	}
+	return ""
 }
 
 // ResolveStream extracts direct stream URLs for a video via yt-dlp, honoring
@@ -187,6 +209,9 @@ func mpvArgs(socketPath string, audioOnly bool) []string {
 	args := []string{
 		"--no-terminal",
 		"--input-ipc-server=" + socketPath,
+		// Try the usual Linux sound servers in order instead of failing on
+		// the first unavailable one.
+		"--ao=pipewire,pulse,alsa",
 		"--cache=no",
 		"--demuxer-max-bytes=50MiB",
 		"--demuxer-max-back-bytes=10MiB",

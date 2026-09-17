@@ -152,6 +152,14 @@ func toolsFor(dir string) Tools {
 			continue
 		}
 		libs := []string{filepath.Join(base, "usr", "lib")}
+		// The extras directory holds the dependency closure the rootfs is
+		// missing. It must be in the loader's library path, not only in the
+		// binary's RUNPATH: RUNPATH only covers direct dependencies, while
+		// libraries like libpulsecommon are pulled in transitively.
+		extras := filepath.Join(base, "usr", "lib", "yt-gecko-extras")
+		if fi, err := os.Stat(extras); err == nil && fi.IsDir() {
+			libs = append(libs, extras)
+		}
 		for _, sub := range []string{"x86_64-linux-gnu", "lib"} {
 			p := filepath.Join(base, "usr", "lib", sub)
 			if fi, err := os.Stat(p); err == nil && fi.IsDir() {

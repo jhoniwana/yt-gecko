@@ -72,6 +72,18 @@ func (g *GeckoCore) mpvCommand(args []string) *exec.Cmd {
 	return exec.Command(g.mpvBin(), args...)
 }
 
+// YTDLPPath returns the bundled yt-dlp path ("" when using PATH).
+func (g *GeckoCore) YTDLPPath() string { return g.ytdlpPath }
+
+// MPVPath returns the bundled mpv path ("" when using PATH).
+func (g *GeckoCore) MPVPath() string { return g.mpvPath }
+
+// MPVCommand exposes the mpv invocation (bundled loader/libraries included)
+// for diagnostics such as the doctor command.
+func (g *GeckoCore) MPVCommand(args ...string) *exec.Cmd {
+	return g.mpvCommand(args)
+}
+
 // mpvBin returns the mpv binary to run (bundled or from PATH).
 func (g *GeckoCore) mpvBin() string {
 	if g.mpvPath != "" {

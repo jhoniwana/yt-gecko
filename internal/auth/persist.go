@@ -23,6 +23,15 @@ func configBase() (string, error) {
 	return dir, nil
 }
 
+// ConfigPath returns the directory that holds the persisted settings.
+func ConfigPath() string {
+	dir, err := configBase()
+	if err != nil {
+		return ""
+	}
+	return dir
+}
+
 const browserFile = "browser"
 
 // SaveBrowser persists the cookie browser name so later sessions reuse the
