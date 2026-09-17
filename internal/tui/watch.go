@@ -75,6 +75,12 @@ func (m *Model) updateWatch(msg tea.KeyMsg) tea.Cmd {
 		return m.thumbCmd()
 	case "/":
 		m.mode = modeInput
+	case "s", "S":
+		m.toggleShuffle()
+	case "r", "R":
+		m.autoplay = !m.autoplay
+	case "m", "M":
+		return m.togglePlaybackMode()
 	case "v", "V":
 		return m.openQuality()
 	case "h", "Q", "esc", "q":

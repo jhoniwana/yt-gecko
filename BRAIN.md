@@ -425,7 +425,7 @@ Chrome comparison: ~20x less RAM, ~10x less CPU, 0 bytes disk vs GBs cache.
 5. Test on additional kitty-graphics terminals (Ghostty, Konsole, WezTerm).
 6. Revisit `feed/subscriptions` extraction when yt-dlp ships a working
    signed-in tab extractor (hard YouTube-side block today).
-## 15. Open questions
+## 16. Open questions
 
 - Merge mode ("open in browser while audio keeps playing"): which key binding?
 - Should the thumbnail be shown on demand full-size (e.g. zoom on Enter)?

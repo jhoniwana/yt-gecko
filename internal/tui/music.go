@@ -746,3 +746,10 @@ func (m *Model) miniThumbLines(id string, cols, rows int) []string {
 	m.minis[id] = lines
 	return lines
 }
+
+// autoplayMsg carries freshly fetched radio/related tracks when the queue ran
+// out and autoplay is on.
+type autoplayMsg struct {
+	tracks []core.SearchResult
+	err    error
+}

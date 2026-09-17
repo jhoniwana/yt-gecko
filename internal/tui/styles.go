@@ -23,29 +23,31 @@ type Styles struct {
 }
 
 func defaultStyles() Styles {
+	// YouTube's palette: red on black with white/gray text. Red 196 is the
+	// classic YouTube red; 88/52 are its dark shades for borders and
+	// selection so the thumbnails keep reading well.
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("237")).
+		BorderForeground(lipgloss.Color("88")).
 		Padding(0, 2)
 	return Styles{
 		App:     lipgloss.NewStyle().Padding(0, 2),
 		Box:     box,
-		Title:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("119")),
-		Accent:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")),
-		Header:  lipgloss.NewStyle().Foreground(lipgloss.Color("250")),
-		Active:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")),
-		Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+		Title:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")),
+		Accent:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")),
+		Header:  lipgloss.NewStyle().Foreground(lipgloss.Color("255")),
+		Active:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")),
+		Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
 		Error:   lipgloss.NewStyle().Foreground(lipgloss.Color("196")),
 		Hint:    lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
-		Success: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("84")),
-		Warn:    lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
-		Bar:     lipgloss.NewStyle().Foreground(lipgloss.Color("208")),
+		Success: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")),
+		Warn:    lipgloss.NewStyle().Foreground(lipgloss.Color("214")),
+		Bar:     lipgloss.NewStyle().Foreground(lipgloss.Color("196")),
 		Help:    lipgloss.NewStyle().Foreground(lipgloss.Color("250")),
-		Muted:   lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
+		Muted:   lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
 		// Hover lights up clickable things under the mouse; Sel marks the
-		// keyboard-selected card. Both are subtle dark backgrounds so the
-		// thumbnails still read well.
-		Hover: lipgloss.NewStyle().Background(lipgloss.Color("237")).Foreground(lipgloss.Color("255")),
-		Sel:   lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("255")),
+		// keyboard-selected card. Both are dark red so the UI stays YouTube.
+		Hover: lipgloss.NewStyle().Background(lipgloss.Color("52")).Foreground(lipgloss.Color("255")),
+		Sel:   lipgloss.NewStyle().Background(lipgloss.Color("88")).Foreground(lipgloss.Color("255")),
 	}
 }

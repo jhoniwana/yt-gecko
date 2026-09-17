@@ -2,6 +2,7 @@ package tui
 
 import (
 	"bytes"
+	"math/rand"
 	"image"
 	"os"
 	"strings"
@@ -26,6 +27,7 @@ const (
 	modeWatch
 	modeQuality
 	modeMusic
+	modeTour
 )
 
 // Model is the root Bubble Tea model for yt-gecko.
@@ -106,7 +108,13 @@ type Model struct {
 	// being played; pos/dur/volume mirror mpv for the progress bar and volume
 	// indicator; albumID is the kitty image id used for the square album art.
 	audioOnly  bool
-	queue      []core.SearchResult
+	tourPage     int
+	tourNoShow   bool
+	shuffle      bool
+	autoplay     bool
+	queue        []core.SearchResult
+	queueSaved   []core.SearchResult
+	relatedSaved []core.SearchResult
 	pos, dur   float64
 	volume     int
 	albumID    int64
@@ -173,6 +181,7 @@ func New(g *core.GeckoCore, gfx *gfxWriter) *Model {
 		imgs:      make(map[string]int64),
 		gfx:       gfx,
 		browsers:  auth.DetectBrowsers(),
+		autoplay:  true,
 	}
 	if b := g.Browser(); b != "" {
 		m.authName = b.Label()
@@ -185,6 +194,7 @@ func New(g *core.GeckoCore, gfx *gfxWriter) *Model {
 	if q := auth.LoadQuality(); q != "" {
 		m.core.SetQuality(q)
 	}
+	detectIcons()
 	return m
 }
 
@@ -198,6 +208,11 @@ func Run(g *core.GeckoCore) error {
 // re-validated lazily on every feed/playback call with a fresh browser dump,
 // so no background verify is needed at boot.
 func (m *Model) Init() tea.Cmd {
+	if !auth.TourSeen() {
+		m.mode = modeTour
+		m.tourPage = 0
+		m.tourNoShow = true
+	}
 	return tea.Batch(m.ensureFeeds(), m.sizeProbe())
 }
 
@@ -278,6 +293,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.musicTick(), m.thumbCmd())
 		}
 		m.mode = modeWatch
+		return m, tea.Batch(m.musicTick(), m.thumbCmd())
 	case relatedMsg:
 		m.relatedBusy = false
 		m.err = nil
@@ -329,6 +345,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recheckErr = "could not re-verify " + msg.browser.Label() + " cookies"
 		}
 		return m, nil
+	case autoplayMsg:
+		m.loading = false
+		if msg.err != nil || len(msg.tracks) == 0 {
+			m.trackEnded = true
+			break
+		}
+		before := len(m.queue)
+		m.queue = appendUnique(m.queue, msg.tracks)
+		if len(m.queue) == before {
+			m.trackEnded = true
+			break
+		}
+		return m, m.musicPlay(before)
 	case musicQueueMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -380,13 +409,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.dur = msg.dur
 			}
 		}
+		if m.playing && (m.mode == modeMusic || m.mode == modeWatch) && msg.eof && !m.trackEnded {
+			m.trackEnded = true
+			return m, m.onTrackEnded()
+		}
 		if m.mode == modeMusic && m.playing {
-			if msg.eof && !m.trackEnded {
-				m.trackEnded = true
-				return m, m.musicNext(1)
-			}
 			// Keep polling even when mpv has no clock yet: the first ticks
 			// fail while the stream is still opening.
+			return m, m.musicTick()
+		}
+		if m.mode == modeWatch && m.playing {
 			return m, m.musicTick()
 		}
 	}
@@ -437,6 +469,8 @@ func (m *Model) updateKey(msg tea.KeyMsg) tea.Cmd {
 		return m.updateQuality(msg)
 	case modeMusic:
 		return m.updateMusic(msg)
+	case modeTour:
+		return m.updateTour(msg)
 	}
 	return nil
 }
@@ -964,21 +998,28 @@ func (m *Model) topBar() string {
 		text string
 		act  func(*Model, int, int) tea.Cmd
 	}
+	// Narrow windows drop the labels so every control still fits.
+	labeled := m.width >= 88
+	searchLabel, subsLabel, tourLabel := icons.Search, icons.Subs, icons.Keys
+	qualityLabel := icons.Quality
+	if labeled {
+		searchLabel += " Search"
+		subsLabel += " Subs"
+		tourLabel += " Tour"
+		qualityLabel += " " + m.core.Quality()
+	}
 	segs := []seg{
-		{"▶ yt-gecko", nil},
+		{icons.Play + " yt-gecko", nil},
 		{"    ", nil},
-		{"⌕ Search", func(m *Model, _, _ int) tea.Cmd { m.mode = modeInput; return nil }},
+		{searchLabel, func(m *Model, _, _ int) tea.Cmd { m.openInput(m.tab == musicTab); return nil }},
 		{"    ", nil},
-		{"★ Subs", func(m *Model, _, _ int) tea.Cmd { return m.switchTab(len(feedSections) - 1) }},
+		{subsLabel, func(m *Model, _, _ int) tea.Cmd { return m.switchTab(len(feedSections) - 1) }},
 		{"    ", nil},
-		{"? Keys", func(m *Model, _, _ int) tea.Cmd {
-			m.message = keysHelp
-			m.msgOK = true
-			m.mode = modeStatus
-			return nil
-		}},
+		{tourLabel, func(m *Model, _, _ int) tea.Cmd { return m.openTour() }},
 		{"    ", nil},
-		{"⚙ " + m.core.Quality(), func(m *Model, _, _ int) tea.Cmd { return m.openQuality() }},
+		{qualityLabel, func(m *Model, _, _ int) tea.Cmd { return m.openQuality() }},
+		{"    ", nil},
+		{m.modeChip(), func(m *Model, _, _ int) tea.Cmd { return m.togglePlaybackMode() }},
 		{"        ", nil},
 	}
 	var b strings.Builder
@@ -1014,8 +1055,177 @@ func (m *Model) topBar() string {
 	return b.String()
 }
 
+// modeChip is the header button that switches between audio-only and video
+// playback.
+func (m *Model) modeChip() string {
+	if m.audioOnly {
+		return icons.Audio + " audio"
+	}
+	return icons.Video + " video"
+}
+
+// togglePlaybackMode flips between audio-only and video playback; a playing
+// track restarts in the new mode so the change applies immediately.
+func (m *Model) togglePlaybackMode() tea.Cmd {
+	m.audioOnly = !m.audioOnly
+	if m.playing && m.current != nil {
+		return m.replayCmd()
+	}
+	return nil
+}
+
+// toggleShuffle shuffles the tracks after the current one (and restores the
+// original order when turned off).
+func (m *Model) toggleShuffle() {
+	m.shuffle = !m.shuffle
+	switch m.mode {
+	case modeMusic:
+		if len(m.queue) == 0 {
+			m.queue = append([]core.SearchResult(nil), m.currentList()...)
+		}
+		if m.shuffle {
+			if m.queueSaved == nil {
+				m.queueSaved = append([]core.SearchResult(nil), m.queue...)
+			}
+			shuffleAfter(m.queue, m.current)
+			return
+		}
+		if m.queueSaved != nil {
+			m.queue = m.queueSaved
+			m.queueSaved = nil
+			m.cursor = indexOfResult(m.queue, m.current, m.cursor)
+		}
+	case modeWatch:
+		if m.shuffle {
+			if m.relatedSaved == nil {
+				m.relatedSaved = append([]core.SearchResult(nil), m.related...)
+			}
+			shuffleAfter(m.related, m.current)
+			return
+		}
+		if m.relatedSaved != nil {
+			m.related = m.relatedSaved
+			m.relatedSaved = nil
+			m.cursor = indexOfResult(m.related, m.current, m.cursor)
+		}
+	}
+}
+
+// shuffleAfter shuffles the entries after the current track, keeping it (and
+// everything before it) in place.
+func shuffleAfter(list []core.SearchResult, current *core.SearchResult) {
+	cur := -1
+	if current != nil {
+		for i, r := range list {
+			if r.ID == current.ID {
+				cur = i
+				break
+			}
+		}
+	}
+	if cur < 0 || cur+1 >= len(list) {
+		return
+	}
+	rest := list[cur+1:]
+	rand.Shuffle(len(rest), func(i, j int) { rest[i], rest[j] = rest[j], rest[i] })
+}
+
+// indexOfResult returns the index of the playing track, falling back to the
+// given cursor when it is not in the list.
+func indexOfResult(list []core.SearchResult, current *core.SearchResult, fallback int) int {
+	if current != nil {
+		for i, r := range list {
+			if r.ID == current.ID {
+				return i
+			}
+		}
+	}
+	if fallback >= len(list) {
+		fallback = len(list) - 1
+	}
+	if fallback < 0 {
+		fallback = 0
+	}
+	return fallback
+}
+
+// onTrackEnded advances playback when a track finishes: the next queue entry,
+// or freshly fetched radio/related tracks when autoplay is on.
+func (m *Model) onTrackEnded() tea.Cmd {
+	if m.mode == modeWatch {
+		if m.cursor+1 < len(m.currentList()) {
+			m.cursor++
+			return tea.Batch(m.playAt(m.cursor), m.loadRelated(m.currentList()[m.cursor].ID))
+		}
+		if !m.autoplay || m.current == nil {
+			return nil
+		}
+		return m.loadAutoplay()
+	}
+	if m.cursor+1 < len(m.currentList()) {
+		return m.musicNext(1)
+	}
+	if !m.autoplay || m.current == nil {
+		return nil
+	}
+	return m.loadAutoplay()
+}
+
+// loadAutoplay fetches more tracks like the current one: the YouTube Music
+// radio for music, the watch-page related videos otherwise.
+func (m *Model) loadAutoplay() tea.Cmd {
+	id := m.current.ID
+	audio := m.audioOnly
+	m.loading = true
+	m.loadingText = "Loading radio..."
+	return tea.Batch(func() tea.Msg {
+		var tracks []core.SearchResult
+		var err error
+		if audio {
+			if shelves, e := m.core.MusicBrowse("RDAMVM"+id, "", 25); e == nil {
+				tracks = core.FlattenShelves(shelves)
+			} else {
+				err = e
+			}
+		}
+		if len(tracks) == 0 {
+			tracks, err = m.core.RelatedVideos(id, 10)
+		}
+		return autoplayMsg{tracks: tracks, err: err}
+	}, m.spinCmd())
+}
+
+// appendUnique appends results whose video id is not already queued.
+func appendUnique(dst, add []core.SearchResult) []core.SearchResult {
+	seen := make(map[string]bool, len(dst))
+	for _, r := range dst {
+		seen[r.ID] = true
+	}
+	for _, r := range add {
+		if r.ID == "" || seen[r.ID] {
+			continue
+		}
+		seen[r.ID] = true
+		dst = append(dst, r)
+	}
+	return dst
+}
+
 // keysHelp is the cheat sheet shown from the header's ? icon.
-const keysHelp = "j/k or wheel: move    enter: play    space: pause    [ ]: sections    /: search    h: back    a: account    ctrl+wheel: zoom    q: quit"
+const keysHelp = `Navigation
+  j/k or wheel  move            enter  play / expand      /  search
+  [ ] or ←/→     sections        h/Esc  back               q  quit
+
+Playback
+  space  pause / resume         n / p  next / prev track
+  ←/→    seek 5s                - / +  volume
+  s      shuffle                r      autoplay (radio)
+  m      audio / video mode     v      quality
+
+Mouse
+  click cards, tabs, queue rows and the player controls
+  hover highlights everything clickable
+  ctrl+wheel zooms the interface`
 
 func (m *Model) body() string {
 	switch m.mode {
@@ -1035,6 +1245,8 @@ func (m *Model) body() string {
 		return m.renderQuality()
 	case modeMusic:
 		return m.renderMusic()
+	case modeTour:
+		return m.renderTour()
 	}
 	return ""
 }
@@ -1196,11 +1408,13 @@ func (m *Model) help() string {
 	case modeStatus:
 		return m.styles.Help.Render("")
 	case modeWatch:
-		return m.styles.Help.Render("j/k: pick next    enter: watch    space: pause    v: quality    [ ]: skip    /: search    h: back")
+		return m.styles.Help.Render("j/k: pick next    enter: watch    space: pause    s: shuffle    r: autoplay    m: audio/video    v: quality    ?: keys    h: back")
 	case modeQuality:
 		return m.styles.Help.Render("j/k: pick quality    enter: apply    esc: cancel")
+	case modeTour:
+		return m.styles.Help.Render("←/→: pages    enter: done")
 	case modeMusic:
-		return m.styles.Help.Render("space: pause    n/p: next/prev    ←/→: seek    -/+: volume    j/k: queue    enter: play    v: quality    h: back")
+		return m.styles.Help.Render("space: pause    n/p: next/prev    s: shuffle    r: autoplay    m: audio/video    v: quality    ?: keys    h: back")
 	}
 	return ""
 }
@@ -1263,4 +1477,9 @@ type thumbMsg struct {
 
 type errMsg struct {
 	err error
+}
+
+// lipglossPlace centers a block horizontally inside the window.
+func lipglossPlace(block string, width int) string {
+	return lipgloss.Place(width-4, lipgloss.Height(block), lipgloss.Center, lipgloss.Top, block)
 }

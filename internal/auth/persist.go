@@ -86,3 +86,37 @@ func LoadQuality() string {
 	}
 	return strings.TrimSpace(string(data))
 }
+
+const tourFile = "tour"
+
+// SaveTourSeen records that the first-run tour was completed.
+func SaveTourSeen() error {
+	dir, err := configBase()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, tourFile), []byte("seen"), 0o600)
+}
+
+// TourSeen reports whether the tour was already shown.
+func TourSeen() bool {
+	dir, err := configBase()
+	if err != nil {
+		return true
+	}
+	_, err = os.Stat(filepath.Join(dir, tourFile))
+	return err == nil
+}
+
+// ForgetTour clears the tour marker so the walkthrough shows again.
+func ForgetTour() error {
+	dir, err := configBase()
+	if err != nil {
+		return err
+	}
+	err = os.Remove(filepath.Join(dir, tourFile))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
