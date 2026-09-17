@@ -15,6 +15,7 @@ import (
 const (
 	musicOrigin       = "https://music.youtube.com"
 	musicBrowsePath   = "/youtubei/v1/browse"
+	musicSearchPath   = "/youtubei/v1/search"
 	musicHomeBrowseID = "FEmusic_home"
 
 	// musicHomePages bounds how many home pages are fetched: enough for the
@@ -154,6 +155,34 @@ func (g *GeckoCore) MusicHome(maxResults int) (*MusicHome, error) {
 	return home, nil
 }
 
+// MusicSearch queries the YouTube Music catalogue (songs, albums, artists,
+// playlists) instead of the video site, so results play audio-only and mixes
+// expand into a queue.
+func (g *GeckoCore) MusicSearch(query string, maxResults int) ([]SearchResult, error) {
+	s, err := g.newInnerTubeSession()
+	if err != nil {
+		return nil, err
+	}
+	raw, err := s.postTo(musicOrigin, musicSearchPath, musicOrigin+"/", map[string]any{
+		"context": musicContext(),
+		"query":   query,
+	})
+	if err != nil {
+		return nil, err
+	}
+	doc, err := decodeJSON(raw)
+	if err != nil {
+		return nil, err
+	}
+	total := 0
+	shelves := parseShelfSections(musicSections(doc), maxResults, &total)
+	items := FlattenShelves(shelves)
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no music results")
+	}
+	return items, nil
+}
+
 // MusicBrowse loads a YouTube Music page (a playlist, album, mix or a mood
 // selected through params) as its shelves. Pass "" for params when not
 // selecting a mood. Playlist and album ids are VL-prefixed on the wire; the
@@ -216,6 +245,7 @@ func FlattenShelves(shelves []MusicShelf) []SearchResult {
 func musicSections(doc map[string]any) []any {
 	paths := [][]string{
 		{"contents", "singleColumnBrowseResultsRenderer", "tabs", "0", "tabRenderer", "content", "sectionListRenderer", "contents"},
+		{"contents", "tabbedSearchResultsRenderer", "tabs", "0", "tabRenderer", "content", "sectionListRenderer", "contents"},
 		{"contents", "twoColumnBrowseResultsRenderer", "secondaryContents", "sectionListRenderer", "contents"},
 		{"continuationContents", "sectionListContinuation", "contents"},
 		{"continuationContents", "musicPlaylistShelfContinuation", "contents"},
@@ -241,7 +271,7 @@ func parseShelfSections(sections []any, maxResults int, total *int) []MusicShelf
 		if !ok {
 			continue
 		}
-		for _, key := range []string{"musicCarouselShelfRenderer", "musicShelfRenderer", "musicPlaylistShelfRenderer", "gridRenderer"} {
+		for _, key := range []string{"musicCarouselShelfRenderer", "musicShelfRenderer", "musicPlaylistShelfRenderer", "gridRenderer", "itemSectionRenderer"} {
 			renderer, ok := m[key].(map[string]any)
 			if !ok {
 				continue

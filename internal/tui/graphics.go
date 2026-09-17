@@ -53,8 +53,12 @@ func (m *Model) thumbRows() int {
 // musicLayout reports whether thumbnails are drawn as square album covers:
 // the music home shelves and the music player use that shape.
 func (m *Model) musicLayout() bool {
-	if m.mode == modeMusic {
+	switch m.mode {
+	case modeMusic:
 		return true
+	case modeSearch:
+		// Results from a YouTube Music search use square covers too.
+		return m.audioOnly
 	}
 	return m.mode == modeHome && m.tab == musicTab && len(m.musicShelves) > 0
 }

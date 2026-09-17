@@ -140,6 +140,7 @@ func TestListFitsWidth(t *testing.T) {
 func TestInputBackspace(t *testing.T) {
 	m := newTestModel()
 	m.q = "hello"
+	m.qCursor = len([]rune(m.q))
 	m.mode = modeInput
 
 	cases := []tea.KeyMsg{
@@ -166,6 +167,7 @@ func TestInputBackspace(t *testing.T) {
 func TestInputRunes(t *testing.T) {
 	m := newTestModel()
 	m.q = ""
+	m.qCursor = 0
 	m.mode = modeInput
 	for _, c := range []tea.KeyMsg{
 		{Type: tea.KeyRunes, Runes: []rune{'l', 'o'}},
@@ -176,5 +178,44 @@ func TestInputRunes(t *testing.T) {
 	}
 	if m.q != "lofi" {
 		t.Fatalf("expected lofi, got %q", m.q)
+	}
+}
+
+// TestInputSpacesAndCursor covers the space key (which arrives as its own key
+// type, not a rune) and mid-string editing with the cursor.
+func TestInputSpacesAndCursor(t *testing.T) {
+	m := newTestModel()
+	m.q = ""
+	m.qCursor = 0
+	m.mode = modeInput
+
+	for _, c := range []tea.KeyMsg{
+		{Type: tea.KeyRunes, Runes: []rune{'l', 'o'}},
+		{Type: tea.KeySpace},
+		{Type: tea.KeyRunes, Runes: []rune{'f', 'i'}},
+	} {
+		model, _ := m.Update(c)
+		m = model.(*Model)
+	}
+	if m.q != "lo fi" {
+		t.Fatalf("spaces not typed: q = %q, want %q", m.q, "lo fi")
+	}
+
+	// Move left twice and insert in the middle.
+	for i := 0; i < 2; i++ {
+		model, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+		m = model.(*Model)
+	}
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+	m = model.(*Model)
+	if m.q != "lo Xfi" {
+		t.Fatalf("mid-string insert: q = %q, want %q", m.q, "lo Xfi")
+	}
+
+	// Backspace deletes before the cursor, not at the end.
+	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m = model.(*Model)
+	if m.q != "lo fi" {
+		t.Fatalf("cursor backspace: q = %q, want %q", m.q, "lo fi")
 	}
 }

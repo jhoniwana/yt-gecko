@@ -44,8 +44,10 @@ type Model struct {
 	feedBusy   []bool
 	feedErrors []error
 
-	q       string
-	results []core.SearchResult
+	q          string
+	qCursor    int
+	inputMusic bool
+	results    []core.SearchResult
 	cursor  int
 	current *core.SearchResult
 	client  *core.Client
@@ -522,7 +524,7 @@ func (m *Model) updateHomeBase(msg tea.KeyMsg) tea.Cmd {
 		m.togglePause()
 		return m.thumbCmd()
 	case "/":
-		m.mode = modeInput
+		m.openInput(m.tab == musicTab)
 	case "a", "A":
 		m.mode = modeLogin
 	case "v", "V":
@@ -545,7 +547,7 @@ func (m *Model) updateSearch(msg tea.KeyMsg) tea.Cmd {
 		m.togglePause()
 		return m.thumbCmd()
 	case "/", "s":
-		m.mode = modeInput
+		m.openInput(m.audioOnly)
 	case "v", "V":
 		return m.openQuality()
 	case "h", "Q", "esc":
@@ -568,18 +570,69 @@ func (m *Model) updateInput(msg tea.KeyMsg) tea.Cmd {
 		return m.search()
 	case tea.KeyEsc:
 		m.backToList()
+	case tea.KeyLeft:
+		if m.qCursor > 0 {
+			m.qCursor--
+		}
+	case tea.KeyRight:
+		if m.qCursor < len([]rune(m.q)) {
+			m.qCursor++
+		}
+	case tea.KeyHome, tea.KeyCtrlA:
+		m.qCursor = 0
+	case tea.KeyEnd, tea.KeyCtrlE:
+		m.qCursor = len([]rune(m.q))
+	case tea.KeyCtrlU:
+		m.q = ""
+		m.qCursor = 0
+	case tea.KeySpace:
+		m.insertAtCursor(" ")
 	case tea.KeyBackspace, tea.KeyDelete, tea.KeyCtrlH:
-		m.q = chomp(m.q)
+		m.deleteBeforeCursor()
 	case tea.KeyRunes:
 		for _, r := range msg.Runes {
 			if r == 0x7f || r == 0x08 { // DEL and backspace arrive as runes on some terminals
-				m.q = chomp(m.q)
+				m.deleteBeforeCursor()
 				continue
 			}
-			m.q += string(r)
+			m.insertAtCursor(string(r))
 		}
 	}
 	return nil
+}
+
+// insertAtCursor inserts text at the query cursor.
+func (m *Model) insertAtCursor(s string) {
+	r := []rune(m.q)
+	if m.qCursor > len(r) {
+		m.qCursor = len(r)
+	}
+	ins := []rune(s)
+	r = append(r[:m.qCursor], append(ins, r[m.qCursor:]...)...)
+	m.qCursor += len(ins)
+	m.q = string(r)
+}
+
+// deleteBeforeCursor removes the rune before the query cursor.
+func (m *Model) deleteBeforeCursor() {
+	r := []rune(m.q)
+	if m.qCursor <= 0 || len(r) == 0 {
+		return
+	}
+	if m.qCursor > len(r) {
+		m.qCursor = len(r)
+	}
+	r = append(r[:m.qCursor-1], r[m.qCursor:]...)
+	m.qCursor--
+	m.q = string(r)
+}
+
+// openInput enters the search box. fromMusic selects the YouTube Music
+// catalogue and the audio-only player for the results.
+func (m *Model) openInput(fromMusic bool) {
+	m.inputMusic = fromMusic
+	m.mode = modeInput
+	m.qCursor = len([]rune(m.q))
 }
 
 func (m *Model) backToList() {
@@ -779,8 +832,16 @@ func (m *Model) search() tea.Cmd {
 	}
 	m.loading = true
 	m.loadingText = "Searching..."
+	music := m.inputMusic
+	m.audioOnly = music
 	return tea.Batch(func() tea.Msg {
-		results, err := m.core.Search(query, 10)
+		var results []core.SearchResult
+		var err error
+		if music {
+			results, err = m.core.MusicSearch(query, 20)
+		} else {
+			results, err = m.core.Search(query, 10)
+		}
 		if err != nil {
 			return errMsg{err}
 		}
@@ -1075,15 +1136,35 @@ func (m *Model) renderSearch() string {
 		b.WriteString(m.styles.Bar.Render(strip) + "\n\n")
 		above += 2
 	}
-	b.WriteString(m.renderList("Results: "+m.q, m.results, above))
+	heading := "Results: " + m.q
+	if m.audioOnly {
+		heading = "Music: " + m.q
+	}
+	b.WriteString(m.renderList(heading, m.results, above))
 	return b.String()
 }
 
 func (m *Model) renderInput() string {
+	title := "Search YouTube"
+	if m.inputMusic {
+		title = "Search YouTube Music"
+	}
+	q := []rune(m.q)
+	cursor := clampInt(m.qCursor, 0, len(q))
 	var b strings.Builder
-	b.WriteString(m.styles.Accent.Render("Search YouTube") + "\n\n")
-	b.WriteString(m.styles.Header.Render("Search: ") + m.q)
+	b.WriteString(m.styles.Accent.Render(title) + "\n\n")
+	b.WriteString(m.styles.Header.Render("Search: "))
+	b.WriteString(string(q[:cursor]))
 	b.WriteString(m.styles.Accent.Render("_"))
+	b.WriteString(string(q[cursor:]))
+	b.WriteString("\n\n")
+	b.WriteString(m.styles.Muted.Render("enter: search    esc: cancel    ←/→: move    ctrl+u: clear"))
+	if m.loading {
+		b.WriteString("\n" + m.styles.Bar.Render(spinnerFrame(m.spin)+" "+m.loadingText))
+	}
+	if m.err != nil {
+		b.WriteString("\n" + m.styles.Error.Render(wrapText(m.err.Error(), m.wrapWidth())))
+	}
 	return m.styles.Box.Render(b.String())
 }
 
