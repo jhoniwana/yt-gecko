@@ -8,7 +8,9 @@
 set -eu
 out="$1"
 appimage="$2"
-work="$(mktemp -d)"
+# Work on real disk, not /tmp: the extracted rootfs is ~350 MB and /tmp is a
+# tmpfs on many systems (half of RAM), which a build must not fill.
+work="$(mktemp -d "${TMPDIR:-$PWD}/.mpv-payload-XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
 cp "$appimage" "$work/mpv.AppImage"

@@ -120,3 +120,27 @@ func ForgetTour() error {
 	}
 	return nil
 }
+
+const themeFile = "theme"
+
+// SaveTheme persists the colour theme name ("dark" or "light").
+func SaveTheme(name string) error {
+	dir, err := configBase()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, themeFile), []byte(name), 0o600)
+}
+
+// LoadTheme returns the saved theme name, or "" when none was saved.
+func LoadTheme() string {
+	dir, err := configBase()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(dir, themeFile))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}

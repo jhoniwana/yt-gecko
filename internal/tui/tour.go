@@ -85,7 +85,12 @@ func (m *Model) tourPages() []tourPage {
 
 // openTour shows the walkthrough, starting at the first page.
 func (m *Model) openTour() tea.Cmd {
-	m.returnMode = m.mode
+	// Opening the tour from the tour itself (or from the quality menu) must
+	// not overwrite where the user actually came from, or closing it would
+	// bounce back into the tour.
+	if m.mode != modeTour && m.mode != modeQuality {
+		m.returnMode = m.mode
+	}
 	m.tourPage = 0
 	m.tourNoShow = true
 	m.mode = modeTour
@@ -96,6 +101,9 @@ func (m *Model) openTour() tea.Cmd {
 // "don't show again" option is enabled (it is by default).
 func (m *Model) closeTour() tea.Cmd {
 	m.mode = m.returnMode
+	if m.mode == modeTour || m.mode == modeQuality {
+		m.mode = modeHome
+	}
 	if m.tourNoShow {
 		_ = auth.SaveTourSeen()
 	} else {

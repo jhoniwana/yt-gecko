@@ -110,6 +110,7 @@ type Model struct {
 	audioOnly  bool
 	tourPage     int
 	tourNoShow   bool
+	light        bool
 	shuffle      bool
 	autoplay     bool
 	queue        []core.SearchResult
@@ -173,7 +174,7 @@ func (m *Model) hitZone(x, y int) func(*Model, int, int) tea.Cmd {
 func New(g *core.GeckoCore, gfx *gfxWriter) *Model {
 	m := &Model{
 		core:      g,
-		styles:    defaultStyles(),
+		styles:    defaultStyles(false),
 		thumbs:    make(map[string]string),
 		thumbBusy: make(map[string]bool),
 		thumbsImg: make(map[string]image.Image),
@@ -193,6 +194,10 @@ func New(g *core.GeckoCore, gfx *gfxWriter) *Model {
 	}
 	if q := auth.LoadQuality(); q != "" {
 		m.core.SetQuality(q)
+	}
+	if auth.LoadTheme() == "light" {
+		m.light = true
+		m.styles = defaultStyles(true)
 	}
 	detectIcons()
 	return m
@@ -435,6 +440,10 @@ func (m *Model) quitCmd() tea.Cmd {
 func (m *Model) updateKey(msg tea.KeyMsg) tea.Cmd {
 	if msg.Type == tea.KeyCtrlC {
 		return m.quitCmd()
+	}
+	if msg.String() == "T" {
+		m.toggleTheme()
+		return nil
 	}
 	if msg.String() == "tab" {
 		if m.mode == modeSearch {
@@ -920,7 +929,8 @@ func (m *Model) View() string {
 	m.zones = m.zones[:0]
 	m.bodyTop = strings.Count(gap, "\n")
 	m.syncThumbLayout()
-	content := m.topBar() + gap + m.body() + "\n\n" + m.help()
+	rule := m.styles.Muted.Render(strings.Repeat("─", width-4))
+	content := m.topBar() + gap + m.body() + "\n" + rule + "\n" + m.help()
 	// The app style pads two columns per side; wider lines would be wrapped by
 	// lipgloss (which shreds boxes and cover art), so clamp every line first.
 	content = truncateLines(content, width-4)
@@ -1062,6 +1072,17 @@ func (m *Model) modeChip() string {
 		return icons.Audio + " audio"
 	}
 	return icons.Video + " video"
+}
+
+// toggleTheme switches between the dark and light palettes and remembers it.
+func (m *Model) toggleTheme() {
+	m.light = !m.light
+	m.styles = defaultStyles(m.light)
+	name := "dark"
+	if m.light {
+		name = "light"
+	}
+	_ = auth.SaveTheme(name)
 }
 
 // togglePlaybackMode flips between audio-only and video playback; a playing
@@ -1398,23 +1419,23 @@ func (m *Model) renderStatus() string {
 func (m *Model) help() string {
 	switch m.mode {
 	case modeHome:
-		return m.styles.Help.Render("j/k: navigate    enter: play    [ ]: sections    /: search    v: quality    ctrl+wheel: zoom    q: quit")
+		return m.styles.Help.Render("?: help    /: search    enter: play    [ ]: sections    q: quit")
 	case modeSearch:
-		return m.styles.Help.Render("j/k: navigate    enter: play    space: pause    /: search    h: home    q: home")
+		return m.styles.Help.Render("?: help    enter: play    /: search    h: back    q: home")
 	case modeInput:
-		return m.styles.Help.Render("type a query, enter: search    esc: cancel")
+		return m.styles.Help.Render("enter: search    esc: cancel    ←/→: move    ctrl+u: clear")
 	case modeLogin:
-		return m.styles.Help.Render("j/k: navigate    enter: verify    o: open browser    esc: back")
+		return m.styles.Help.Render("j/k: pick    enter: verify    o: open browser    esc: back")
 	case modeStatus:
 		return m.styles.Help.Render("")
 	case modeWatch:
-		return m.styles.Help.Render("j/k: pick next    enter: watch    space: pause    s: shuffle    r: autoplay    m: audio/video    v: quality    ?: keys    h: back")
+		return m.styles.Help.Render("?: help    space: pause    j/k: pick    m: audio/video    v: quality    h: back")
 	case modeQuality:
 		return m.styles.Help.Render("j/k: pick quality    enter: apply    esc: cancel")
+	case modeMusic:
+		return m.styles.Help.Render("?: help    space: pause    n/p: next/prev    s: shuffle    m: audio/video    h: back")
 	case modeTour:
 		return m.styles.Help.Render("←/→: pages    enter: done")
-	case modeMusic:
-		return m.styles.Help.Render("space: pause    n/p: next/prev    s: shuffle    r: autoplay    m: audio/video    v: quality    ?: keys    h: back")
 	}
 	return ""
 }

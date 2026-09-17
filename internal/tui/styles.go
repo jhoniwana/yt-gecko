@@ -22,14 +22,41 @@ type Styles struct {
 	Sel     lipgloss.Style
 }
 
-func defaultStyles() Styles {
+func defaultStyles(light ...bool) Styles {
+	isLight := len(light) > 0 && light[0]
 	// YouTube's palette: red on black with white/gray text. Red 196 is the
 	// classic YouTube red; 88/52 are its dark shades for borders and
-	// selection so the thumbnails keep reading well.
+	// selection so the thumbnails keep reading well. The light variant uses
+	// darker reds and dark text for terminals with a light background.
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("88")).
 		Padding(0, 2)
+	if isLight {
+		box = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("131")).
+			Padding(0, 2)
+		return Styles{
+			App:     lipgloss.NewStyle().Padding(0, 2),
+			Box:     box,
+			Title:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("160")),
+			Accent:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("160")),
+			Header:  lipgloss.NewStyle().Foreground(lipgloss.Color("232")),
+			Active:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("160")),
+			Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("243")),
+			Error:   lipgloss.NewStyle().Foreground(lipgloss.Color("160")),
+			Hint:    lipgloss.NewStyle().Foreground(lipgloss.Color("243")),
+			Success: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("160")),
+			Warn:    lipgloss.NewStyle().Foreground(lipgloss.Color("166")),
+			Bar:     lipgloss.NewStyle().Foreground(lipgloss.Color("160")),
+			Help:    lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
+			Muted:   lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
+			// Light selection: pale red background with near-black text.
+			Hover: lipgloss.NewStyle().Background(lipgloss.Color("224")).Foreground(lipgloss.Color("232")),
+			Sel:   lipgloss.NewStyle().Background(lipgloss.Color("217")).Foreground(lipgloss.Color("232")),
+		}
+	}
 	return Styles{
 		App:     lipgloss.NewStyle().Padding(0, 2),
 		Box:     box,
