@@ -21,6 +21,8 @@ func (m *Model) tourPages() []tourPage {
 		{
 			Title: "Welcome to yt-gecko",
 			Body: strings.Join([]string{
+				snakeLogo,
+				"",
 				"YouTube and YouTube Music in your terminal.",
 				"",
 				icons.Play + "  enter      play the selected item",

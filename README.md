@@ -1,5 +1,25 @@
 # yt-gecko
 
+```
+_____________________________
+|                  _        |
+|                 /"\       |
+|                /o o\      |
+|           _\/  \   / \/_  |
+|            \\._/  /_.//   |
+|            `--,  ,----'   |
+|              /   /        |
+|    ^        /    \        |
+|   /|       (      )       |
+|  / |     ,__\    /__,     |
+|  \ \   _//---,  ,--\\_    |
+|   \ \   /\  /  /   /\     |
+|    \ \.___,/  /           |
+|     \.______,/            |
+|                           |
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+```
+
 Fast. Lightweight. Sticks to your terminal.
 
 A terminal client for YouTube and YouTube Music that combines the best of both worlds:
@@ -150,6 +170,9 @@ yt-gecko/
 |   |-- auth/              # browser cookie auth
 |-- assets/
     |-- logo.txt           # ASCII gecko logo
+    |-- logo-snake.txt     # ASCII snake logo (the README/tour splash)
+    |-- icon/              # launcher icons
+    |-- yt-gecko.desktop   # app entry
 ```
 
 ## Development
