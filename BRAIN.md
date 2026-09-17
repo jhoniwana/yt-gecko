@@ -299,6 +299,15 @@ Login screen:
       quick verification failed
 - Esc - back
 
+Search box (from any list):
+
+- Text editing with a cursor: Left/Right, Home/End (or ctrl+a/ctrl+e),
+  ctrl+u clears, Backspace/Delete. Space arrives as its own key type in
+  bubbletea (not a rune), which is why it needed explicit handling.
+- Opening the box from the Music tab searches the YouTube Music catalogue
+  (songs, albums, mixes; results play audio-only and mixes expand), anywhere
+  else it searches YouTube videos.
+
 Music tab (YouTube Music home, shelf grid):
 
 - j / k - move a row (the grid column count)
