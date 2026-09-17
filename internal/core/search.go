@@ -44,9 +44,17 @@ func (g *GeckoCore) Search(query string, maxResults int) ([]SearchResult, error)
 
 // Feed lists recent videos for a topic from YouTube's hashtag feed. It is
 // the closest reliable source for a content home without signed-in API
-// access, since the homepage HTML no longer embeds video data.
+// access, since the homepage HTML no longer embeds video data. yt-dlp returns
+// the whole hashtag page, so the list is capped to maxResults.
 func (g *GeckoCore) Feed(tag string, maxResults int) ([]SearchResult, error) {
-	return g.listVideos(fmt.Sprintf("https://www.youtube.com/hashtag/%s", tag))
+	results, err := g.listVideos(fmt.Sprintf("https://www.youtube.com/hashtag/%s", tag))
+	if err != nil {
+		return nil, err
+	}
+	if maxResults > 0 && len(results) > maxResults {
+		results = results[:maxResults]
+	}
+	return results, nil
 }
 
 func (g *GeckoCore) listVideos(source string) ([]SearchResult, error) {
