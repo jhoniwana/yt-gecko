@@ -2,15 +2,15 @@ package tui
 
 import (
 	"bytes"
-	"math/rand"
 	"image"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/jhoniwana/yt-gecko/internal/auth"
 	"github.com/jhoniwana/yt-gecko/internal/core"
 	"golang.org/x/sys/unix"
@@ -50,11 +50,11 @@ type Model struct {
 	qCursor    int
 	inputMusic bool
 	results    []core.SearchResult
-	cursor  int
-	current *core.SearchResult
-	client  *core.Client
-	playing bool
-	loading bool
+	cursor     int
+	current    *core.SearchResult
+	client     *core.Client
+	playing    bool
+	loading    bool
 
 	related     []core.SearchResult
 	relatedBusy bool
@@ -107,7 +107,7 @@ type Model struct {
 	// window) and the dedicated player UI; queue is the expanded playlist
 	// being played; pos/dur/volume mirror mpv for the progress bar and volume
 	// indicator; albumID is the kitty image id used for the square album art.
-	audioOnly  bool
+	audioOnly    bool
 	tourPage     int
 	tourNoShow   bool
 	light        bool
@@ -116,10 +116,10 @@ type Model struct {
 	queue        []core.SearchResult
 	queueSaved   []core.SearchResult
 	relatedSaved []core.SearchResult
-	pos, dur   float64
-	volume     int
-	albumID    int64
-	trackEnded bool
+	pos, dur     float64
+	volume       int
+	albumID      int64
+	trackEnded   bool
 
 	// Music home: the YouTube Music shelves of the account, flattened for
 	// navigation, the mood chips, and the current browse page ("" = home).

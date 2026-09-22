@@ -30,6 +30,15 @@ A terminal client for YouTube and YouTube Music that combines the best of both w
 - Ephemeral (no cache, everything deleted on exit)
 - Your algorithm (subscriptions, history, mixes)
 
+## Disclaimer
+
+yt-gecko is an independent, unofficial project. It is **not affiliated with,
+endorsed by, or connected to** YouTube, Google LLC or YouTube Music, and it
+uses YouTube's web interfaces the same way yt-dlp and Invidious do. It is
+meant for personal, educational use. You are responsible for how you use it;
+respect YouTube's terms of service and your local laws. No song or video is
+downloaded or copied — playback is streamed in memory only.
+
 ## Installation
 
 ### From binary
@@ -37,9 +46,9 @@ A terminal client for YouTube and YouTube Music that combines the best of both w
 Grab the latest release for your platform, or build from source:
 
 ```bash
-wget https://github.com/jhoniwana/yt-gecko/releases/latest/download/yt-gecko-linux-amd64
-chmod +x yt-gecko-linux-amd64
-sudo mv yt-gecko-linux-amd64 /usr/local/bin/yt-gecko
+wget https://github.com/jhoniwana/yt-gecko/releases/latest/download/yt-gecko-portable-linux-amd64
+chmod +x yt-gecko-portable-linux-amd64
+sudo mv yt-gecko-portable-linux-amd64 /usr/local/bin/yt-gecko
 ```
 
 ### From source
